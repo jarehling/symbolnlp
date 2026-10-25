@@ -26,8 +26,11 @@ def evaluate(texts: list[str], *, trials: int = 32, seed: int = 0,
             'trials': trials, 'successful_trials': n, 'unique_outputs': len(counts),
             'empirical_output_entropy_bits': entropy,
             'unchanged_trials': sum(result.status == 'unchanged' for result in results),
-            'structural_fidelity_passes': sum(result.report.get('meaning', {}).get('all_propositions_match', False)
+            'structural_fidelity_passes': sum(result.report.get('meaning', {}).get('all_propositions_match', False) is True
                                              for result in results if result.report.get('meaning')),
+            'rule_fidelity_passes': sum(result.report.get('meaning', {}).get('all_rule_constraints_match') is True
+                                       or result.report.get('meaning', {}).get('method') == 'unit_local_rule_replay_and_structural_comparison'
+                                       for result in results if result.report.get('meaning')),
             'variability': results[0].report['variability'],
             'detector': None,
         }

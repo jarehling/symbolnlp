@@ -29,6 +29,10 @@ random generator. Python's SystemRandom alone does not enforce host isolation.
   independent final verification, diagnostics, and result schema.
 - `rewording/evaluation.py`: repeatable diversity/utility evaluation and an
   optional user-supplied detector hook.
+- `alternations/catalog.py`: all 45 bounded rule families and explicit guards.
+- `alternations/engine.py`: deduplicated derivation graphs and replay verification.
+- `alternations/mixed.py`: ordered composition of grammar/core units, with shared
+  document spelling.
 - `core.py`: controlled grammar, shared statement/question segmentation, and
   semantic records including Question and QueryContext.
 - `questions.py`: interrogative syntax, explicit query-variable binding,

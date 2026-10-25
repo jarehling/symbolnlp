@@ -245,6 +245,42 @@ Additional realization expansion is capped at 4096 combinations per base sentenc
 candidate; exceeding that limit explicitly rejects the passage rather than
 reporting an incomplete count as exhaustive.
 
+## 45 syntactic and formatting alternations
+
+All 45 methods from the supplied inventory now have executable **bounded grammar**
+implementations, applicability metadata, guards, and tests. Inspect them with:
+
+```sh
+python3 -m symbolnlp alternations
+python3 -m symbolnlp paraphrase 'Turn off the light.'
+python3 -m symbolnlp paraphrase 'She can swim.' --assume ability_modal_reading
+```
+
+See [all methods, supported templates, and guards](docs/alternations.md).
+These implementations recognize the listed constructions, not unrestricted prose.
+They include discourse split/merge, lists and ordering, contractions, genitives,
+relatives, modality, clefts, dates, number formatting, punctuation, and spelling.
+Unknown constructions still fail coverage instead of being rewritten heuristically.
+
+Reports now include `alternations.inventory` with all 45 IDs, risks, templates,
+enabled/blocked/not_matched status, missing context, and available transformation
+edges. Multiple supported sentences can combine catalog methods with the existing
+symbolic realizer. Output counts deduplicate correlated derivations; US/UK
+spelling is shared across the whole document. Production selection still uses
+OS-backed randomness and includes the original normalized rendering.
+
+Some alternations are not unconditional equivalences. Explicit `RewriteContext`
+assumptions are required for ability vs obligation readings, distribution,
+coordination, focus/discourse changes, and locale-sensitive dates. Litotes needs
+a caller-supplied entailment verifier that accepts the candidate in both directions.
+No verifier or LLM is bundled, and no entailment success is invented.
+
+Meaning reports distinguish core structural comparison from **rule-derivation
+replay** and mixed per-unit evidence. A catalog score of 1.0 records satisfied
+rule constraints under caller assumptions, not independently measured semantic
+similarity. The 4096-node unit limit fails explicitly rather than producing an
+incorrect exhaustive variability count.
+
 ## Evaluation
 
 ```python

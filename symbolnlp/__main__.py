@@ -3,6 +3,7 @@ import json
 import sys
 from .core import Document, parse, render
 from .rewording import paraphrase
+from .alternations import RewriteContext, inventory
 
 
 def main():
@@ -13,6 +14,8 @@ def main():
     rewrite.add_argument("--candidates", type=int, default=16)
     rewrite.add_argument("--seed", type=int, help="Reproducible testing only; disables private randomness")
     rewrite.add_argument("--text-only", action="store_true", help="Emit only text for the receiving agent")
+    commands.add_parser("alternations", help="List all 45 rules, risks, and context guards")
+    rewrite.add_argument("--assume", action="append", default=[], help="Trusted context assumption (repeatable)")
     p = commands.add_parser("parse")
     p.add_argument("text", nargs="?", help="Text (default: stdin)")
     p.add_argument("--preserve-vocabulary", action="store_true")
@@ -22,9 +25,12 @@ def main():
     r.add_argument("--seed", type=int)
     args = parser.parse_args()
     try:
-        if args.command == "paraphrase":
+        if args.command == "alternations":
+            print(json.dumps(inventory(), indent=2))
+        elif args.command == "paraphrase":
             result = paraphrase(args.text if args.text is not None else sys.stdin.read(),
-                                candidates=args.candidates, seed=args.seed)
+                                candidates=args.candidates, seed=args.seed,
+                                context=RewriteContext(frozenset(args.assume)))
             if args.text_only:
                 if result.text is None:
                     parser.exit(2, "symbolnlp: Unsupported passage; use JSON output for coverage details\n")

@@ -65,7 +65,8 @@ def _surface_metrics(source, output):
 
 
 def paraphrase(text: str, *, candidates: int = 16, seed: int | None = None,
-               backend: RewriteBackend | None = None) -> ParaphraseResult:
+               backend: RewriteBackend | None = None, context=None,
+               entailment_verifier=None) -> ParaphraseResult:
     """Return text plus auditable variability and structural fidelity reports.
 
     Defaults use OS-backed randomness. Seeded runs are for testing only. Long
@@ -76,6 +77,11 @@ def paraphrase(text: str, *, candidates: int = 16, seed: int | None = None,
         raise ValueError('candidates must be an integer from 1 through 256')
     if seed is not None and type(seed) is not int:
         raise ValueError('seed must be an integer or None')
+    from ..alternations import RewriteContext
+    if context is not None and not isinstance(context, RewriteContext):
+        raise ValueError('context must be RewriteContext or None')
+    if entailment_verifier is not None and not callable(entailment_verifier):
+        raise ValueError('entailment_verifier must be callable or None')
     backend = backend or SymbolicBackend()
     base_report = {
         'schema_version': 1, 'backend': backend.name,
@@ -91,6 +97,10 @@ def paraphrase(text: str, *, candidates: int = 16, seed: int | None = None,
             'covert_signal_removal_established': False,
         },
     }
+    from ..alternations import inventory
+    base_report['alternations'] = {'registered': 45, 'inventory': [
+        {**item, 'status': 'not_matched', 'missing_context': []} for item in inventory()],
+        'guard_context_source': 'trusted_caller_not_input_text'}
     # The symbolic backend is the coverage gate; no source text is included in reports.
     try:
         normalized = canonicalize(text)
@@ -104,6 +114,18 @@ def paraphrase(text: str, *, candidates: int = 16, seed: int | None = None,
         'scope': 'NFKC and whitespace only; no homoglyph mapping, markdown rewriting, or code rewriting.',
         'fidelity_reference': 'normalized_input; normalization itself is not semantically verified',
     }
+    if backend.name == 'controlled_english_symbolic_v1':
+        from ..alternations.engine import rewrite_catalog
+        catalog_result = rewrite_catalog(text, base_report=base_report, candidates=candidates,
+                                         seed=seed, context=context, verifier=entailment_verifier)
+        if catalog_result is None:
+            from ..alternations.mixed import rewrite_mixed
+            catalog_result = rewrite_mixed(text, base_report=base_report, candidates=candidates,
+                                           seed=seed, context=context, verifier=entailment_verifier)
+        if catalog_result is not None:
+            status, output, report = catalog_result
+            report['surface_change'] = _surface_metrics(normalized.text, output)
+            return ParaphraseResult(status, output, report)
     try:
         sentences = split_sentences(normalized.text)
     except ValueError as exc:
@@ -166,6 +188,17 @@ def paraphrase(text: str, *, candidates: int = 16, seed: int | None = None,
         'count_scope': 'Exact product of deduplicated verified sentence renderings in this backend; not all English paraphrases.',
         'axes_are_independent': False,
     }
+    # Existing realizers implement several catalog methods on a wider controlled
+    # grammar; expose that applicability rather than reporting them not matched.
+    core_methods = {'voice': 12, 'recipient_structure': 13,
+                    'location_position': 30, 'information_request_form': 33}
+    for axis in axes:
+        method_id = core_methods.get(axis['parameter'])
+        if method_id is not None:
+            record = base_report['alternations']['inventory'][method_id - 1]
+            record.update({'status': 'enabled', 'missing_context': [],
+                           'provider': 'core_structural_realizer'})
+            record.setdefault('sites', []).append({'sentence': axis['sentence'], 'values': axis['values']})
     base_report['meaning'] = {
         'method': 'structural_field_agreement',
         'score': sum(f.score for f in fidelity) / len(fidelity),
