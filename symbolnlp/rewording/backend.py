@@ -4,6 +4,7 @@ from itertools import product
 from typing import Protocol
 from ..core import Adjunct, Document, INTRANSITIVE, Proposition, VERBS, parse, render, render_entity
 from .semantics import compare_meaning
+from .realizations import extra_variants
 
 
 @dataclass(frozen=True)
@@ -86,21 +87,22 @@ class SymbolicBackend:
                      (subject.pronoun and subject.pronoun != 'i'))):
                     clause = clause[0].lower() + clause[1:]
                 text = phrase[0].upper() + phrase[1:] + ', ' + clause
-            try:
-                decoded = parse(text).propositions[0]
-                if not compare_meaning(source, decoded).exact_match:
+            for candidate, extra_choices in extra_variants(source, text):
+                try:
+                    decoded = parse(candidate).propositions[0]
+                    if not compare_meaning(source, decoded).exact_match:
+                        rejected += 1
+                        continue
+                except ValueError:
                     rejected += 1
                     continue
-            except ValueError:
-                rejected += 1
-                continue
-            choices = (('verb_lemma', lemma or 'fixed'), ('voice', voice),
-                       ('location_position', location), ('recipient_structure', recipient))
-            accepted.setdefault(text, Variant(text, choices))
+                choices = (('verb_lemma', lemma or 'fixed'), ('voice', voice),
+                           ('location_position', location), ('recipient_structure', recipient)) + extra_choices
+                accepted.setdefault(candidate, Variant(candidate, choices))
         if not accepted:
             raise ValueError('No structurally equivalent rendering available')
         parameters = []
-        for name in ('verb_lemma', 'voice', 'location_position', 'recipient_structure'):
+        for name in sorted({name for variant in accepted.values() for name, _ in variant.choices}):
             values = tuple(sorted({dict(v.choices)[name] for v in accepted.values()}))
             if len(values) > 1:
                 parameters.append((name, values))

@@ -2,6 +2,7 @@
 from dataclasses import replace
 import re
 import random
+from .lexical import NAMED_ENTITIES, INFORMATION_NOUNS
 from .core import (Document, Entity, MONTHS, MODALS, Proposition, QueryContext, Question,
                    UnsupportedText, VERBS, _be, _case_entity, _entity, _parse_sentence,
                    _third_singular, render, render_entity)
@@ -27,9 +28,16 @@ def _context(tokens):
     contexts = []
     while tokens:
         if len(tokens) >= 2 and tokens[0].lower() == 'in':
-            value = tokens[1]
+            consumed = 2
+            if len(tokens) >= 5 and [t.lower() for t in tokens[1:4]] == ['the', 'city', 'of']:
+                value = tokens[4]
+                if NAMED_ENTITIES.get(value) != 'city':
+                    raise UnsupportedText('No verified city alias for this location')
+                consumed = 5
+            else:
+                value = tokens[1]
             contexts.append(QueryContext('month' if value in MONTHS else 'location', value=value))
-            tokens = tokens[2:]
+            tokens = tokens[consumed:]
         elif len(tokens) == 2 and tokens[0].lower() == 'from':
             match = re.fullmatch(r'(\d{4})-(\d{4})', tokens[1])
             if not match:
@@ -41,11 +49,29 @@ def _context(tokens):
     return tuple(contexts)
 
 
+def parse_information_request(sentence, normalize=True):
+    """Bind list requests to a query; never confuse a physical transfer with one."""
+    tokens = sentence.split()
+    low = [t.lower() for t in tokens]
+    if low[:3] not in [['tell', 'me', 'some'], ['give', 'me', 'some']]:
+        return None
+    boundary = next((i for i, t in enumerate(low[3:], 3) if t == 'from'), len(tokens))
+    restriction = _entity(tokens[2:boundary])
+    if restriction.number != 'plural':
+        return None
+    if low[0] == 'give' and restriction.noun not in INFORMATION_NOUNS:
+        return None  # e.g. give me some dogs is a transfer command, not a query.
+    return parse_question('What are ' + ' '.join(tokens[2:]), normalize)
+
+
 def parse_question(sentence, normalize=True):
     tokens = sentence.split()
     low = [t.lower() for t in tokens]
     if not tokens:
         raise UnsupportedText('Empty question')
+    request = parse_information_request(sentence, normalize)
+    if request is not None:
+        return request
     # Description query: the unknown is a description, not an asserted predicate.
     if low[:2] in [['what', 'is'], ['what', 'are']]:
         like = next((i for i, t in enumerate(low[2:], 2) if t == 'like'), None)

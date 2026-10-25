@@ -96,7 +96,8 @@ paraphrases or a measurement of remaining covert-channel capacity.
 The report includes:
 
 - Applicable parameters and their values at each sentence position: verb lemma,
-  active/passive voice, location placement, and recipient construction.
+  active/passive voice, location placement, recipient construction, named-entity
+  noun-phrase form, information-request form, and modifier synonyms.
 - Counts of deduplicated, structurally verified sentence renderings.
 - The product of those counts across a passage, plus its base-2 logarithm.
 - The number of variable sentence positions, rejected candidates, and sampled
@@ -192,8 +193,8 @@ preserves questions as questions and never supplies answers.
 - `What are some great novels from 1900-1950?` uses `select.n.01`, retaining
   `some`, the modifier `great`, and an inclusive year-range constraint.
 
-The four description/restricted-selection examples currently have one verified
-rendering each, so their variability report is honest about unchanged wording.
+Description and selection queries support the additional variation axes below;
+queries without applicable alternatives still report unchanged wording honestly.
 Polar questions about help can use the existing synonym and voice alternatives.
 Question kind, requested role, variable restrictions, and contexts participate in
 meaning verification. Dropping a question mark does not silently turn a supported
@@ -204,6 +205,45 @@ initial noun qualifier is `of self-harm`, named-instance syntax is `the planet
 Name`, and contextual names are single words. General why/where/when questions,
 embedded questions, tags, contractions, and arbitrary wh adjunct extraction
 remain unsupported. Lexical/query IDs are local, not verified WordNet IDs.
+
+## Named phrases, request forms, and modifier synonyms
+
+These additional axes are included in candidate generation, semantic filtering,
+and exact variability counts:
+
+| Source | Verified choices | Count |
+| --- | --- | --- |
+| What is the weather like in Chicago in October? | Chicago / the city of Chicago | 2 |
+| What is the planet Venus like? | Venus / the planet Venus | 2 |
+| What are some great novels from 1900-1950? | What are / Tell me / Give me × great / outstanding | 6 |
+
+Together these three sentences offer four parameters and 24 passage renderings.
+For example, `Tell me some outstanding novels from 1900-1950.` decodes to the
+same information request as the interrogative source, retaining the modifier's
+encoded sense, the selection restriction, and the year range.
+
+The query's semantic force is an information request; its surface form may be
+interrogative (`?`) or directive (`.`). Directives requesting information are
+normalized to the same query representation rather than an event transferring
+an object. `Tell me some ...` supports plural list requests; `Give me some ...`
+is treated as an information request only for the explicitly registered
+information nouns `novel/book`. A physical command such as `Give me some dogs.`
+remains a transfer event. `Give me some novels.` is pragmatically ambiguous;
+this configured vocabulary chooses the list-request interpretation.
+
+`symbolnlp/lexical.py` holds the curated equivalence classes. The initial named
+entity registry contains Chicago → city and Venus → planet. Types are never
+inferred solely from capitalization, and unknown names receive no invented
+expansion. Bare and expanded registered names normalize to the same structured
+entity. `great/outstanding` share one local positive-quality modifier class;
+`good` remains separate. These are local assumptions, not verified WordNet sense
+links or a guarantee of identical connotation/intensity in unrestricted prose.
+
+The rewording backend enumerates each applicable named-phrase occurrence and
+modifier occurrence independently, then filters and deduplicates all combinations.
+Additional realization expansion is capped at 4096 combinations per base sentence
+candidate; exceeding that limit explicitly rejects the passage rather than
+reporting an incomplete count as exhaustive.
 
 ## Evaluation
 

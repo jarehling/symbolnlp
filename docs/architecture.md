@@ -21,6 +21,9 @@ random generator. Python's SystemRandom alone does not enforce host isolation.
 - `rewording/canonical.py`: conservative normalization and change audit.
 - `rewording/backend.py`: `RewriteBackend` protocol and symbolic sentence-space
   enumeration. Each variant has surface text and choice labels.
+- `rewording/realizations.py`: bounded named-phrase, information-request, and
+  modifier lexical variation over explicit equivalence classes.
+- `lexical.py`: local named-entity type registry and modifier synonym classes.
 - `rewording/semantics.py`: inspectable proposition-field fidelity comparison.
 - `rewording/pipeline.py`: coverage, passage-space counting, private sampling,
   independent final verification, diagnostics, and result schema.

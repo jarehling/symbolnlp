@@ -2,6 +2,7 @@
 from dataclasses import asdict, dataclass
 import random
 import re
+from .lexical import NAMED_ENTITIES, MODIFIER_CANONICAL
 
 
 class UnsupportedText(ValueError):
@@ -69,7 +70,7 @@ class Entity:
     def __post_init__(self):
         if self.variable is not None and self.variable != "answer":
             raise ValueError("Only the answer query variable is supported")
-        if any(word not in {"great", "good"} for word in self.modifiers):
+        if any(word not in MODIFIER_CANONICAL for word in self.modifiers):
             raise ValueError("Unsupported noun modifier")
         if self.qualifier_of is not None and self.qualifier_of != "self-harm":
             raise ValueError("Unsupported noun qualifier")
@@ -140,7 +141,7 @@ def render_entity(entity: Entity, *, case: str = "subject") -> str:
     if entity.modifiers:
         noun = " ".join(entity.modifiers) + " " + noun
     if entity.named_instance:
-        noun += " " + entity.named_instance
+        noun += (" of " if entity.noun == "city" else " ") + entity.named_instance
     if entity.qualifier_of:
         noun += " of " + entity.qualifier_of
     if entity.quantity is not None:
@@ -375,9 +376,13 @@ def _entity(tokens):
         return replace(_entity(tokens[:-2]), text=None, qualifier_of="self-harm")
     if len(tokens) == 3 and lowered[0] == "the" and lowered[1] == "planet" and tokens[2][0].isupper():
         return Entity(noun="planet", determiner="the", named_instance=tokens[2])
-    if len(tokens) >= 3 and lowered[0] in DETERMINERS and lowered[1] in {"great", "good"}:
+    if len(tokens) >= 3 and lowered[0] in DETERMINERS and lowered[1] in MODIFIER_CANONICAL:
         from dataclasses import replace
-        return replace(_entity([tokens[0]] + tokens[2:]), text=None, modifiers=(lowered[1],))
+        return replace(_entity([tokens[0]] + tokens[2:]), text=None, modifiers=(MODIFIER_CANONICAL[lowered[1]],))
+    if len(tokens) == 1 and tokens[0] in NAMED_ENTITIES:
+        return Entity(noun=NAMED_ENTITIES[tokens[0]], named_instance=tokens[0], determiner="the")
+    if len(tokens) == 4 and lowered[:3] == ["the", "city", "of"] and NAMED_ENTITIES.get(tokens[3]) == "city":
+        return Entity(noun="city", named_instance=tokens[3], determiner="the")
     if any(t in PRONOUNS for t in lowered):
         raise UnsupportedText("Unsupported compound pronoun phrase")
     if any(t in {"and", "or", "who", "which", "by", "not", "if", "because", "to", "of", "in", "on", "at"}
@@ -484,6 +489,10 @@ def _special_copula(tokens):
 
 
 def _parse_sentence(sentence, normalize):
+    from .questions import parse_information_request
+    request = parse_information_request(sentence, normalize)
+    if request is not None:
+        return request
     if "," in sentence:
         if sentence.count(",") != 1:
             raise UnsupportedText("Only one fronted location phrase is supported")
